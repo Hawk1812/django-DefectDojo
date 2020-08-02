@@ -1,5 +1,6 @@
 # # endpoints
 
+import socket
 import logging
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -113,11 +114,15 @@ def get_endpoint_ids(endpoints):
     hosts = []
     ids = []
     for e in endpoints:
-        if ":" in e.host:
-            host_no_port = e.host[:e.host.index(':')]
-        else:
-            host_no_port = e.host
-        key = host_no_port + '-' + str(e.product.id)
+        try:
+            if socket.inet_pton(socket.AF_INET6, e.host.strip()):
+                host_no_port = e.host 
+        except:
+            if ":" in e.host:
+                host_no_port = e.host[:e.host.index(':')]
+            else:
+                host_no_port = e.host
+        key = str(host_no_port) + '-' + str(e.product.id)
         if key in hosts:
             continue
         else:
@@ -128,9 +133,15 @@ def get_endpoint_ids(endpoints):
 
 def view_endpoint(request, eid):
     endpoint = get_object_or_404(Endpoint, id=eid)
-    host = endpoint.host_no_port
-    endpoints = Endpoint.objects.filter(host__regex="^" + host + ":?",
-                                        product=endpoint.product).distinct()
+    try:
+        if socket.inet_pton(socket.AF_INET6, endpoint.strip()):
+            host = endpoint
+            endpoints = Endpoint.objects.filter(host__regex=".*" + host,
+                                                product=endpoint.product).distinct()
+    except: 
+        host = endpoint.host_no_port
+        endpoints = Endpoint.objects.filter(host__regex="^" + host + ":?",
+                                            product=endpoint.product).distinct()
 
     if (request.user in endpoint.product.authorized_users.all()) or request.user.is_staff:
         pass

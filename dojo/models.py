@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import re
+import socket
 from uuid import uuid4
 from django.conf import settings
 from watson import search as watson
@@ -1043,7 +1044,7 @@ class Endpoint(models.Model):
                                 help_text="The fragment identifier which follows the hash mark. The hash mark should "
                                           "be omitted. For example 'section-13', 'paragraph-2'.")
     product = models.ForeignKey(Product, null=True, blank=True, on_delete=models.CASCADE)
-    endpoint_params = models.ManyToManyField(Endpoint_Params, blank=True, editable=False)
+    endpoint_params = models.ManyToManyField(Endpoint_Params, blank=True, editable=True)
     mitigated = models.BooleanField(default=False, blank=True)
     endpoint_status = models.ManyToManyField(Endpoint_Status, blank=True, related_name='endpoint_endpoint_status')
 
@@ -1055,33 +1056,39 @@ class Endpoint(models.Model):
 
     def __unicode__(self):
         from urllib.parse import uses_netloc
-
-        netloc = self.host
-        port = self.port
-        scheme = self.protocol
-        url = self.path if self.path else ''
-        query = self.query
-        fragment = self.fragment
-
-        if port:
-            # If http or https on standard ports then don't tack on the port number
-            if (port != 443 and scheme == "https") or (port != 80 and scheme == "http"):
-                netloc += ':%s' % port
-
-        if netloc or (scheme and scheme in uses_netloc and url[:2] != '//'):
-            if url and url[:1] != '/':
-                url = '/' + url
-            if scheme and scheme in uses_netloc and url[:2] != '//':
-                url = '//' + (netloc or '') + url
-            else:
-                url = (netloc or '') + url
-        if scheme:
-            url = scheme + ':' + url
-        if query:
-            url = url + '?' + query
-        if fragment:
-            url = url + '#' + fragment
-        return url
+        try:
+            if socket.inet_pton(socket.AF_INET6, self.host.strip()):
+                netloc = self.host
+                port = ''
+                scheme = ''
+                url = ''
+                query = ''
+                fragment = ''
+        except:
+            netloc = self.host
+            port = self.port
+            scheme = self.protocol
+            url = self.path if self.path else ''
+            query = self.query
+            fragment = self.fragment
+            if port:
+                # If http or https on standard ports then don't tack on the port number
+                if (port != 443 and scheme == "https") or (port != 80 and scheme == "http"):
+                    netloc += ':%s' % port
+            if netloc or (scheme and scheme in uses_netloc and url[:2] != '//'):
+                if url and url[:1] != '/':
+                    url = '/' + url
+                if scheme and scheme in uses_netloc and url[:2] != '//':
+                    url = '//' + (netloc or '') + url
+                else:
+                    url = (netloc or '') + url
+            if scheme:
+                url = scheme + ':' + url
+            if query:
+                url = url + '?' + query
+            if fragment:
+                url = url + '#' + fragment
+            return url
 
     def __str__(self):
         from urllib.parse import uses_netloc
@@ -1171,24 +1178,32 @@ class Endpoint(models.Model):
 
     @property
     def host_no_port(self):
-        if ":" in self.host:
-            return self.host[:self.host.index(":")]
-        else:
-            return self.host
+        try:
+            if socket.inet_pton(socket.AF_INET6, self.host.strip()):
+                return self.host
+        except:
+            if ":" in self.host:
+                return self.host[:self.host.index(":")]
+            else:
+                return self.host
 
     @property
     def host_with_port(self):
         host = self.host
         port = self.port
         scheme = self.protocol
-        if ":" in host:
-            return host
-        elif (port is None) and (scheme == "https"):
-            return host + ':443'
-        elif (port is None) and (scheme == "http"):
-            return host + ':80'
-        else:
-            return str(self)
+        try:
+            if socket.inet_pton(socket.AF_INET6, self.host.strip()):
+                return self.host
+        except:
+            if ":" in host:
+                return host
+            elif (port is None) and (scheme == "https"):
+                return host + ':443'
+            elif (port is None) and (scheme == "http"):
+                return host + ':80'
+            else:
+                return str(self)
 
 
 class NoteHistory(models.Model):

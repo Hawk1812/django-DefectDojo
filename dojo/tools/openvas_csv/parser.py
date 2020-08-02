@@ -83,6 +83,14 @@ class UrlColumnMappingStrategy(ColumnMappingStrategy):
 
         return valid
 
+    def is_valid_ipv6_address(self, address):
+        valid = True
+        try:
+            socket.inet_pton(socket.AF_INET6, address.strip())
+        except:
+            valid = False
+        return valid
+
     def map_column_value(self, finding, column_value):
         url = column_value
         finding.url = url
@@ -94,6 +102,7 @@ class UrlColumnMappingStrategy(ColumnMappingStrategy):
 
         ParseResult(scheme='http', netloc='www.cwi.nl:80', path='/%7Eguido/Python.html',
                     params='', query='', fragment='')
+        """
         """
         if self.is_valid_ipv4_address(url) == False:
             rhost = re.search(
@@ -140,9 +149,9 @@ class UrlColumnMappingStrategy(ColumnMappingStrategy):
                     endpoints = [endpoint, dupe_endpoint]
 
                 finding.unsaved_endpoints = endpoints
-
+"""
         #URL is an IP so save as an IP endpoint
-        elif self.is_valid_ipv4_address(url) == True:
+        if self.is_valid_ipv4_address(url) == True:
             try:
                 dupe_endpoint = Endpoint.objects.get(protocol=None,
                                                      host=url,
@@ -160,8 +169,18 @@ class UrlColumnMappingStrategy(ColumnMappingStrategy):
 
             finding.unsaved_endpoints = endpoints
 
+        elif self.is_valid_ipv6_address(url) == True:
+            try:
+                dupe_endpoint = Endpoint.objects.get(url)
+            except:
+                dupe_endpoint = None
 
+            if not dupe_endpoint:
+                endpoints = [Endpoint(host=url, product=finding.test.engagement.product)]
+            else:
+                endpoints = [dupe_endpoint]
 
+            finding.unsaved_endpoints = endpoints
 
 class SeverityColumnMappingStrategy(ColumnMappingStrategy):
 
